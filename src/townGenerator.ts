@@ -1,0 +1,300 @@
+export interface Town {
+    map: Segment[];
+    items: Item[];
+    size: number;
+}
+
+export interface Segment {
+    model: number;
+    type: "ROAD" | "PARK" | "SHOP" | "HOUSE"
+    rotation: number;
+}
+
+export interface Item {
+    model: number;
+    rotation: number;
+    x: number;
+    y: number;
+}
+
+interface Point {
+    x: number;
+    y: number;
+}
+
+interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+export const townModelMapping: Record<number, string> = {
+    1: "world/road_straight.gltf",
+    5: "world/road_straight_crossing.gltf",
+    2: "world/road_junction.gltf",
+    3: "world/road_tsplit.gltf",
+    4: "world/road_corner_curved.gltf",
+    10: "world/building_A.gltf",
+    11: "world/building_B.gltf",
+    12: "world/building_C.gltf",
+    13: "world/building_D.gltf",
+    14: "world/building_E.gltf",
+    15: "world/building_F.gltf",
+    16: "world/building_G.gltf",
+    17: "world/building_H.gltf",
+    100: "world/base.gltf",
+    200: "world/trafficlight_A.gltf",
+    201: "world/trafficlight_B.gltf",
+    202: "world/trafficlight_C.gltf",
+}
+
+type RandomFunc = () => number;
+
+function seededRandom(a: number): RandomFunc {
+    return function () {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
+
+function generateRoad(town: Town, x: number, y: number, north: boolean, south: boolean, east: boolean, west: boolean) {
+    if (north) {
+        for (let i = y - 1; i >= 0; i--) {
+            if (getSegment(town, x, i)) {
+                break;
+            }
+            setSegment(town, x, i, { model: 1, type: "ROAD", rotation: 0 });
+        }
+    }
+    if (south) {
+        for (let i = y + 1; i < town.size; i++) {
+            if (getSegment(town, x, i)) {
+                break;
+            }
+            setSegment(town, x, i, { model: 1, type: "ROAD", rotation: 0 });
+        }
+    }
+    if (west) {
+        for (let i = x - 1; i >= 0; i--) {
+            if (getSegment(town, i, y)) {
+                break;
+            }
+            setSegment(town, i, y, { model: 1, type: "ROAD", rotation: 0 });
+        }
+    }
+    if (east) {
+        for (let i = x + 1; i < town.size; i++) {
+            for (let i = x - 1; i >= 0; i--) {
+                if (getSegment(town, i, y)) {
+                    break;
+                }
+                setSegment(town, i, y, { model: 1, type: "ROAD", rotation: 0 });
+            }
+        }
+    }
+}
+
+function contains(rect: Rect, x: number, y: number): boolean {
+    return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+}
+
+function setSegment(town: Town, x: number, y: number, segment: Segment) {
+    town.map[x + (y * town.size)] = segment;
+}
+
+function getSegment(town: Town, x: number, y: number): Segment | undefined {
+    if (x < 0 || x >= town.size || y < 0 || y >= town.size) {
+        return undefined;
+    }
+
+    return town.map[x + (y * town.size)]
+}
+
+function findPlots(town: Town): Rect[] {
+    const plots: Rect[] = [];
+
+    for (let x = 0; x < town.size; x++) {
+        for (let y = 0; y < town.size; y++) {
+            if (!getSegment(town, x, y)) {
+                if (!plots.find(plot => contains(plot, x, y))) {
+                    // start new plot
+                    let xp = x;
+                    let yp = y;
+                    for (xp = x; xp < town.size; xp++) {
+                        if (getSegment(town, xp, y)) {
+                            break;
+                        }
+                    }
+                    for (yp = y; yp < town.size; yp++) {
+                        if (getSegment(town, x, yp)) {
+                            break;
+                        }
+                    }
+
+                    const plot = {
+                        x, y, width: (xp - x), height: (yp - y)
+                    };
+                    plots.push(plot);
+                }
+            }
+        }
+    }
+
+    return plots;
+}
+
+function splitPlot(town: Town, plot: Rect) {
+    if (plot.width > plot.height) {
+        const xp = plot.x + Math.floor(plot.width / 2);
+        for (let y = plot.y; y < plot.y + plot.height; y++) {
+            setSegment(town, xp, y, { model: 1, type: "ROAD", rotation: 0 })
+        }
+    } else {
+        const yp = plot.y + Math.floor(plot.height / 2);
+        for (let x = plot.x; x < plot.x + plot.width; x++) {
+            setSegment(town, x, yp, { model: 1, type: "ROAD", rotation: 0 })
+        }
+    }
+}
+
+function rationalizeRoad(random: RandomFunc, town: Town, x: number, y: number, road: Segment): void {
+    const north = getSegment(town, x, y - 1)?.type === "ROAD";
+    const south = getSegment(town, x, y + 1)?.type === "ROAD";
+    const west = getSegment(town, x - 1, y)?.type === "ROAD";
+    const east = getSegment(town, x + 1, y)?.type === "ROAD";
+
+    // cross roads
+    if (north && south && east && west) {
+        road.model = 2;
+        road.rotation = random() > 0.5 ? 0 : Math.PI / 2;
+
+        town.items.push({ model: 202, rotation: -Math.PI / 2, x: x - 0.5, y: y + 0.5 })
+        town.items.push({ model: 202, rotation: Math.PI / 2, x: x + 0.5, y: y - 0.5 })
+        town.items.push({ model: 202, rotation: 0, x: x + 0.5, y: y + 0.5 })
+        town.items.push({ model: 202, rotation: Math.PI, x: x - 0.5, y: y - 0.5 })
+    } else if (north && west && east) {
+        road.model = 3;
+        road.rotation = Math.PI / 2;
+    } else if (south && west && east) {
+        road.model = 3;
+        road.rotation = Math.PI * 1.5;
+    } else if (south && north && west) {
+        road.model = 3;
+        road.rotation = Math.PI;
+    } else if (south && north && east) {
+        road.model = 3;
+    } else if (south && east) {
+        road.model = 4;
+    } else if (south && west) {
+        road.model = 4;
+        road.rotation = Math.PI * 1.5;
+    } else if (north && west) {
+        road.model = 4;
+        road.rotation = Math.PI
+    } else if (north && east) {
+        road.model = 4;
+        road.rotation = Math.PI / 2
+    } else if ((west || east) && !north && !south) {
+        road.rotation = Math.PI / 2;
+    }
+
+    const directions = (south ? 1 : 0) + (north ? 1 : 0) + (east ? 1 : 0) + (west ? 1 : 0);
+    if (directions === 3) {
+        if (west) {
+            town.items.push({ model: 202, rotation: -Math.PI / 2, x: x - 0.5, y: y + 0.5 })
+        }
+        if (east) {
+            town.items.push({ model: 202, rotation: Math.PI / 2, x: x + 0.5, y: y - 0.5 })
+        }
+    }
+    if (road.model === 1 && random() < 0.05) {
+        road.model = 5;
+    }
+}
+
+export function generateTown(seed: number): Town {
+    const random = seededRandom(seed);
+    const town: Town = {
+        map: [],
+        size: 20,
+        items: []
+    };
+
+    let trafficHubCount = Math.floor(town.size / 4);
+    const trafficHubs: Point[] = [];
+
+    while (trafficHubCount > 0) {
+        const x = Math.floor(random() * town.size);
+        const y = Math.floor(random() * town.size);
+
+        if (!trafficHubs.find(hub => Math.abs(hub.x - x) < 3 || Math.abs(hub.y - y) < 3)) {
+            setSegment(town, x, y, { model: 1, type: "ROAD", rotation: 0 });
+            trafficHubs.push({ x, y })
+            trafficHubCount--;
+        }
+    }
+
+    // expand roads out
+    for (const hub of trafficHubs) {
+        generateRoad(town, hub.x, hub.y, true, true, true, true);
+    }
+
+    for (let i = 0; i < town.size; i++) {
+        setSegment(town, i, 0, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, i, town.size - 1, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, 0, i, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, town.size - 1, i, { model: 1, type: "ROAD", rotation: 0 });
+    }
+
+    // see if we have any plots that are too big
+    let plots = findPlots(town);
+    while (plots.find(p => p.width > 5 || p.height > 5)) {
+        const tooBig = plots.filter(p => p.width > 5 || p.height > 5);
+        for (const plot of tooBig) {
+            splitPlot(town, plot);
+        }
+        plots = findPlots(town);
+    }
+
+    // rationalise roads
+    for (let x = 0; x < town.size; x++) {
+        for (let y = 0; y < town.size; y++) {
+            const segment = getSegment(town, x, y);
+            if (segment && segment.type === "ROAD") {
+                rationalizeRoad(random, town, x, y, segment);
+            }
+        }
+    }
+
+    for (const plot of plots) {
+        for (let x = 0; x < plot.width; x++) {
+            for (let y = 0; y < plot.height; y++) {
+                const xp = x + plot.x;
+                const yp = y + plot.y
+                const north = getSegment(town, xp, yp - 1)?.type === "ROAD";
+                const south = getSegment(town, xp, yp + 1)?.type === "ROAD";
+                const west = getSegment(town, xp - 1, yp)?.type === "ROAD";
+                const east = getSegment(town, xp + 1, yp)?.type === "ROAD";
+
+                if (north || south || west || east) {
+                    let r = 0;
+                    if (south) {
+                        r = 0;
+                    } else if (west) {
+                        r = -Math.PI / 2;
+                    } else if (east) {
+                        r = Math.PI / 2;    
+                    } else if (north) {
+                        r = Math.PI;    
+                    }
+                    setSegment(town, xp, yp, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: r })
+                }
+            }
+        }
+    }
+
+    return town;
+}
