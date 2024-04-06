@@ -1,4 +1,3 @@
-import { update } from "three/examples/jsm/libs/tween.module.js";
 import { collisionCellsPerTownCell, collisionCellSize } from "./contants";
 import { ASSETS } from "./lib/rawassets";
 
@@ -97,12 +96,24 @@ function generateRoad(town: Town, x: number, y: number, north: boolean, south: b
             if (getSegment(town, x, i)) {
                 break;
             }
+            if (getSegment(town, x - 1, i)) {
+                break;
+            }
+            if (getSegment(town, x + 1, i)) {
+                break;
+            }
             setSegment(town, x, i, { model: 1, type: "ROAD", rotation: 0 });
         }
     }
     if (south) {
         for (let i = y + 1; i < town.size; i++) {
             if (getSegment(town, x, i)) {
+                break;
+            }
+            if (getSegment(town, x - 1, i)) {
+                break;
+            }
+            if (getSegment(town, x + 1, i)) {
                 break;
             }
             setSegment(town, x, i, { model: 1, type: "ROAD", rotation: 0 });
@@ -113,17 +124,27 @@ function generateRoad(town: Town, x: number, y: number, north: boolean, south: b
             if (getSegment(town, i, y)) {
                 break;
             }
+            if (getSegment(town, i, y - 1)) {
+                break;
+            }
+            if (getSegment(town, y, y + 1)) {
+                break;
+            }
             setSegment(town, i, y, { model: 1, type: "ROAD", rotation: 0 });
         }
     }
     if (east) {
         for (let i = x + 1; i < town.size; i++) {
-            for (let i = x - 1; i >= 0; i--) {
-                if (getSegment(town, i, y)) {
-                    break;
-                }
-                setSegment(town, i, y, { model: 1, type: "ROAD", rotation: 0 });
+            if (getSegment(town, i, y)) {
+                break;
             }
+            if (getSegment(town, i, y - 1)) {
+                break;
+            }
+            if (getSegment(town, y, y + 1)) {
+                break;
+            }
+            setSegment(town, i, y, { model: 1, type: "ROAD", rotation: 0 });
         }
     }
 }
@@ -304,10 +325,6 @@ export function generateTown(seed: number, size = 22): Town {
         }
     }
 
-    // expand roads out
-    for (const hub of trafficHubs) {
-        generateRoad(town, hub.x, hub.y, true, true, true, true);
-    }
 
     for (let i = 1; i < town.size - 1; i++) {
         setSegment(town, i, 1, { model: 1, type: "ROAD", rotation: 0 });
@@ -316,6 +333,10 @@ export function generateTown(seed: number, size = 22): Town {
         setSegment(town, town.size - 2, i, { model: 1, type: "ROAD", rotation: 0 });
     }
 
+    // expand roads out
+    for (const hub of trafficHubs) {
+        generateRoad(town, hub.x, hub.y, true, true, true, true);
+    }
     // see if we have any plots that are too big
     let plots = findPlots(town);
     while (plots.find(p => p.width > 5 || p.height > 5)) {

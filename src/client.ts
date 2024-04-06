@@ -54,9 +54,10 @@ loadAllTownModels();
 
 onAllLoaded(() => {
   console.log(getAnimations(prototype));
-  shotgun.model!.scene.translateX(-0.4);
-  shotgun.model!.scene.translateY(0.2);
-
+  if (shotgun.model) {
+    shotgun.model.scene.translateX(-0.4);
+    shotgun.model.scene.translateY(0.2);
+  }
   const scene = worldSetup(false);
 
   // playerModel = createAnimated(scene, prototype, duck, "character_duck");

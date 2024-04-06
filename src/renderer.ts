@@ -4,9 +4,10 @@ let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let light1: THREE.DirectionalLight;
+let light2: THREE.DirectionalLight;
 let lightGroup: THREE.Object3D;
 
-const planView = false;
+const planView = true;
 const distance = 5;
 export function worldSetup(withPlane: boolean): THREE.Scene {
     scene = new THREE.Scene();
@@ -60,7 +61,7 @@ export function worldSetup(withPlane: boolean): THREE.Scene {
     light1.shadow.mapSize.height = 1024
     light1.shadow.camera.near = 0.1
     light1.shadow.camera.far = 1000
-    light1.shadow
+    light1.shadow.bias = -0.001;
 
     const d = 50;
     light1.shadow.camera.left = - d;
@@ -68,8 +69,14 @@ export function worldSetup(withPlane: boolean): THREE.Scene {
     light1.shadow.camera.top = d;
     light1.shadow.camera.bottom = - d;
 
+    light2 = new THREE.DirectionalLight(0xffffff, 0.5);
+    light2.position.set(-20, 30, 10);
+    light2.lookAt(0, 0, 0);
+
     lightGroup.add(light1.target);
     lightGroup.add(light1);
+    lightGroup.add(light2.target);
+    lightGroup.add(light2);
 
     scene.add(lightGroup);
 
@@ -91,7 +98,7 @@ export function lookAt(target: THREE.Object3D): void {
     const above = (distance / 3) + 1;
 
     if (planView) {
-        camera.position.set(target.position.x, 200, target.position.y);
+        camera.position.set(target.position.x, 500, target.position.y);
     } else {
         camera.position.set(target.position.x - (direction.x * distance), target.position.y + above, target.position.z - (direction.z * distance));
         lightGroup.position.copy(target.position);

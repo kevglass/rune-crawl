@@ -1,8 +1,8 @@
-import { BoxGeometry, Mesh, MeshBasicMaterial, Scene } from "three";
+import { Scene } from "three";
 import { instanceModel } from "./modelLoader";
 import { Town, townModelMapping } from "./town";
 import { getTownModel } from "./townModels";
-import { collisionCellsPerTownCell, collisionCellSize, renderSize } from "./contants";
+import { renderSize } from "./contants";
 
 export function renderTown(scene: Scene, town: Town): void {
     for (let x = 0; x < town.size; x++) {
