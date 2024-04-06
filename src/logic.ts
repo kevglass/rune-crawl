@@ -1,4 +1,5 @@
 import type { PlayerId, RuneClient } from "rune-games-sdk/multiplayer"
+import { ASSETS } from "./lib/rawassets"
 
 export type Cells = (PlayerId | null)[]
 export interface GameState {
@@ -37,12 +38,14 @@ function findWinningCombo(cells: Cells) {
 Rune.initLogic({
   minPlayers: 2,
   maxPlayers: 2,
-  setup: (allPlayerIds) => ({
-    cells: new Array(9).fill(null),
-    winCombo: null,
-    lastMovePlayerId: null,
-    playerIds: allPlayerIds,
-  }),
+  setup: (allPlayerIds) => {
+    return {
+      cells: new Array(9).fill(null),
+      winCombo: null,
+      lastMovePlayerId: null,
+      playerIds: allPlayerIds,
+    }
+  },
   actions: {
     claimCell: (cellIndex, { game, playerId, allPlayerIds }) => {
       if (

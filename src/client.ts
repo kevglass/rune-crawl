@@ -1,9 +1,11 @@
 import { disableShadows, lookAt, renderScene, worldSetup } from './renderer';
-import { animateModel, attach, createFromKayAnimations, getAnimations, instanceModel, loadModel, onAllLoaded, updateAnimations } from './modelLoader';
+import { animateModel, attach, createFromKayAnimations, getAnimations, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
 import { Object3D, Object3DEventMap, Vector3 } from 'three';
 import nipplejs, { JoystickManager } from 'nipplejs';
-import { getTownModel, loadAllTownModels } from './townModels';
-import { generateTown, townModelMapping } from './townGenerator';
+import { loadAllTownModels } from './townModels';
+import { generateTown, getTownCollisionAt } from './town';
+import { renderSize } from './contants';
+import { renderTown } from './renderTown';
 
 const prototype = loadModel("prototype.glb", true, false);
 const survivor = loadModel("character_survivor.gltf", true, true);
@@ -60,47 +62,43 @@ onAllLoaded(() => {
   // playerModel = createAnimated(scene, prototype, duck, "character_duck");
   // playerModel = applyTexture(instanceModel(scene, monster), textureB);
   playerModel = createFromKayAnimations(scene, prototype, survivor, "character_survivor");
+  recolor(playerModel, "BlueDarker", "#44aa80");
+  
   scene.add(playerModel);
   attach(playerModel, shotgun, "handSlotRight")
   animateModel(playerModel, "Idle");
 
-  const pieceSize = 15;
+  renderTown(scene, town);
 
-  for (let x = 0; x < town.size; x++) {
-    for (let y = 0; y < town.size; y++) {
-      const segment = town.map[x + (y * town.size)];
-      if (segment) {
-        const ref = townModelMapping[segment.model];
-        if (ref) {
-          const template = getTownModel(ref);
-          const model = instanceModel(template);
-          scene.add(model);
-          model.scale.set(pieceSize / 2, pieceSize / 2, pieceSize / 2);
-          model.rotateY(segment.rotation);
-          model.position.x = ((x + 0.5) * pieceSize)
-          model.position.z = ((y + 0.5) * pieceSize)
-        }
-      }
-    }
-  }
-  for (const item of town.items) {
-    const ref = townModelMapping[item.model];
-    if (ref) {
-      const template = getTownModel(ref);
-      const model = instanceModel(template);
-      scene.add(model);
-      model.scale.set(pieceSize / 2, pieceSize / 2, pieceSize / 2);
-      model.rotateY(item.rotation);
-      model.position.x = ((item.x + 0.5) * pieceSize)
-      model.position.z = ((item.y + 0.5) * pieceSize)
-    }
-  }
-
-  playerModel.position.x = (town.size / 2 * pieceSize);
-  playerModel.position.z = town.size / 2 * pieceSize - (pieceSize / 2);
+  playerModel.position.x = (town.size / 2 * renderSize);
+  playerModel.position.z = town.size / 2 * renderSize - (renderSize / 2);
   playerModel.position.y = 0.5;
   lookAt(playerModel);
 });
+
+function moveForwards(amount: number) {
+  const direction = playerModel.getWorldDirection(new Vector3());
+  let bestHeight = 0;
+  for (let i=-0.25;i<0.25;i+=0.125) {
+    const xp = playerModel.position.x + (direction.x * amount * 2) + (direction.z * i);
+    const yp = playerModel.position.z + (direction.z * amount * 2) + (direction.x * i);
+    const heightAt = getTownCollisionAt(town, xp, yp);
+    if (heightAt > 0.15) {
+      return;
+    }
+
+    bestHeight = Math.max(bestHeight, heightAt);
+  }
+
+  playerModel.translateZ(amount);
+  if (bestHeight !== 0) {
+    playerModel.position.y = (bestHeight*renderSize/2);
+  }
+}
+
+function moveBackwards(amount: number) {
+  moveForwards(-amount / 2);
+}
 
 function animate() {
   const now = Date.now();
@@ -119,11 +117,11 @@ function animate() {
       let change = false;
 
       if (keys["ArrowUp"] || keys["w"]) {
-        playerModel.translateZ(movePerFrame);
+        moveForwards(movePerFrame);
         change = true;
       }
       if (keys["ArrowDown"] || keys["s"]) {
-        playerModel.translateZ(-movePerFrame/2);
+        moveBackwards(movePerFrame);
         change = true;
       }
       if (keys["ArrowLeft"] || keys["a"]) {
@@ -140,7 +138,11 @@ function animate() {
         change = true;
       }
       if (Math.abs(controls.y) > 0.1) {
-        playerModel.translateZ(controls.y * movePerFrame * (controls.y < 0 ? 0.5 : 1));
+        if (controls.y < 0) {
+          moveBackwards(-controls.y * movePerFrame);
+        } else {
+          moveForwards(controls.y * movePerFrame);
+        }
         change = true;
       }
       if (change) {

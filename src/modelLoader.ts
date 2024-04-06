@@ -59,6 +59,24 @@ export function createFromKayAnimations(scene: THREE.Scene, animations: ModelRef
     return instance;
 }
 
+export function dumpColors(model: THREE.Object3D): void {
+    model.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+            console.log(child.material.name);
+        }
+    })
+}
+
+export function recolor(model: THREE.Object3D, name: string, col: string): void {
+    model.traverse(child => {
+        if (child instanceof THREE.Mesh) {
+            if (child.material.name === name) {
+                child.material.color = new THREE.Color(col);
+            }
+        }
+    })
+}
+
 export function applyTexture(model: THREE.Object3D<THREE.Object3DEventMap>, texture: THREE.Texture): THREE.Object3D<THREE.Object3DEventMap> {
     model.traverse(child => {
         if (child instanceof THREE.SkinnedMesh) {

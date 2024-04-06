@@ -1,4 +1,4 @@
-const SVG = import.meta.glob("../assets/**/*.svg", {
+const JSON = import.meta.glob("../assets/**/*.json", {
     query: '?raw',
     import: 'default',
     eager: true,
@@ -7,6 +7,6 @@ const SVG = import.meta.glob("../assets/**/*.svg", {
 
 export const ASSETS: Record<string, string> = {};
 
-for (const key in SVG) {
-    ASSETS[key.substring("../assets/".length)] = SVG[key];
+for (const key in JSON) {
+    ASSETS[key.substring("../assets/".length)] = JSON[key];
 }

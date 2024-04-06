@@ -1,5 +1,5 @@
 import { ModelRef, loadModel } from "./modelLoader";
-import { townModelMapping } from "./townGenerator";
+import { townModelMapping } from "./town";
 
 const townModels: Record<string, ModelRef> = {};
 
