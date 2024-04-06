@@ -219,20 +219,29 @@ export function generateTown(seed: number): Town {
     const random = seededRandom(seed);
     const town: Town = {
         map: [],
-        size: 20,
+        size: 22,
         items: []
     };
 
     let trafficHubCount = Math.floor(town.size / 4);
     const trafficHubs: Point[] = [];
 
+    for (let i = 0; i < town.size; i++) {
+        setSegment(town, i, 0, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: 0 });
+        setSegment(town, i, town.size - 1, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: Math.PI });
+        setSegment(town, 0, i, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: Math.PI / 2 });
+        setSegment(town, town.size - 1, i,  { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: -Math.PI / 2 });
+    }
+
     while (trafficHubCount > 0) {
         const x = Math.floor(random() * town.size);
         const y = Math.floor(random() * town.size);
 
         if (!trafficHubs.find(hub => Math.abs(hub.x - x) < 3 || Math.abs(hub.y - y) < 3)) {
-            setSegment(town, x, y, { model: 1, type: "ROAD", rotation: 0 });
-            trafficHubs.push({ x, y })
+            if (!getSegment(town, x, y)) {
+                setSegment(town, x, y, { model: 1, type: "ROAD", rotation: 0 });
+                trafficHubs.push({ x, y })
+            }
             trafficHubCount--;
         }
     }
@@ -242,11 +251,11 @@ export function generateTown(seed: number): Town {
         generateRoad(town, hub.x, hub.y, true, true, true, true);
     }
 
-    for (let i = 0; i < town.size; i++) {
-        setSegment(town, i, 0, { model: 1, type: "ROAD", rotation: 0 });
-        setSegment(town, i, town.size - 1, { model: 1, type: "ROAD", rotation: 0 });
-        setSegment(town, 0, i, { model: 1, type: "ROAD", rotation: 0 });
-        setSegment(town, town.size - 1, i, { model: 1, type: "ROAD", rotation: 0 });
+    for (let i = 1; i < town.size-1; i++) {
+        setSegment(town, i, 1, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, i, town.size - 2, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, 1, i, { model: 1, type: "ROAD", rotation: 0 });
+        setSegment(town, town.size - 2, i, { model: 1, type: "ROAD", rotation: 0 });
     }
 
     // see if we have any plots that are too big
@@ -291,6 +300,8 @@ export function generateTown(seed: number): Town {
                         r = Math.PI;    
                     }
                     setSegment(town, xp, yp, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: r })
+                } else {
+                    setSegment(town, xp, yp, { model: 100, type: "SHOP", rotation: 0 })
                 }
             }
         }

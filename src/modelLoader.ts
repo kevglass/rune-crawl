@@ -10,13 +10,18 @@ export interface ModelRef {
     receiveShadow: boolean;
 }
 
+interface AnimSettings {
+    name: string;
+    mixer: THREE.AnimationMixer;
+    completeListener: () => void;
+}
+
 const loader = new GLTFLoader();
 let allLoadedCallback: () => void;
 const models: ModelRef[] = [];
 const textures: THREE.Texture[] = [];
-const mixers: Record<number, THREE.AnimationMixer> = {};
+const anims: Record<number, AnimSettings> = {};
 const originals: Record<number, GLTF> = {};
-const animationCompleteListeners: Record<number, (() => void)> = {};
 
 export type KayBone = "armRight" | "armLeft" | "Head" | "Body" | "handSlotLeft" | "handSlotRight";
 
@@ -130,23 +135,33 @@ export function getAnimations(modelRef: ModelRef): string[] {
 }
 
 export function animateModel(model: THREE.Object3D<THREE.Object3DEventMap>, name: string, once = false, onDone: (() => void) | undefined = undefined): void {
-    let mixer = mixers[model.id];
-    if (!mixer) {
-        mixer = mixers[model.id] = new THREE.AnimationMixer(model);
-        mixer.addEventListener("finished", () => {
-            if (animationCompleteListeners[model.id]) {
-                animationCompleteListeners[model.id]();
-                delete animationCompleteListeners[model.id];
-            }
+    let anim: AnimSettings = anims[model.id];
+    if (!anim) {
+        anim = anims[model.id] = {
+            name: "",
+            mixer: new THREE.AnimationMixer(model),
+            completeListener: () => { return }
+        }
+
+        anim.mixer.addEventListener("finished", () => {
+            anim.completeListener();
+            anim.completeListener = () => { return }
         });
     }
-    const anim = originals[model.id].animations.find(anim => anim.name === name);
-    if (!anim) {
+
+    if (anim.name === name) {
+        return;
+    }
+    anim.name = name;
+
+    anim.mixer.stopAllAction();
+    const animation = originals[model.id].animations.find(anim => anim.name === name);
+    if (!animation) {
         console.log("Couldn't find animation: " + name);
         return;
     }
 
-    const action = mixer.clipAction(anim);
+    const action = anim.mixer.clipAction(animation);
 
     if (once) {
         action.setLoop(THREE.LoopOnce, 1);
@@ -155,12 +170,12 @@ export function animateModel(model: THREE.Object3D<THREE.Object3DEventMap>, name
     action.enabled = true;
     action.play();
     if (onDone) {
-        animationCompleteListeners[model.id] = onDone;
+        anim.completeListener = onDone;
     } else {
-        delete animationCompleteListeners[model.id];
+        anim.completeListener = () => { return }
     }
 }
 
 export function updateAnimations(delta: number): void {
-    Object.values(mixers).forEach(mixer => mixer.update(delta));
+    Object.values(anims).forEach(anim => anim.mixer.update(delta));
 }

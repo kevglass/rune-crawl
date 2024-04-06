@@ -4,16 +4,18 @@ let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let light1: THREE.DirectionalLight;
-let light2: THREE.DirectionalLight;
 let lightGroup: THREE.Object3D;
 
-const planView = false;
-const distance = 7;
+const planView = true;
+const distance = 5;
 export function worldSetup(withPlane: boolean): THREE.Scene {
     scene = new THREE.Scene();
     scene.background = new THREE.Color("#87CEEB");
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, planView ? 2000 : 500);
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, planView ? 2000 : 80);
+    if (!planView) {
+        scene.fog = new THREE.Fog( 0x87CEEB, 50, 80 );
+    }
     // const aspect = window.innerWidth / window.innerHeight;
     // const cameraDistance = distance / window.innerWidth;
     // camera = new THREE.OrthographicCamera(- cameraDistance * aspect, cameraDistance * aspect, cameraDistance, - cameraDistance, -100, 100);
@@ -27,7 +29,10 @@ export function worldSetup(withPlane: boolean): THREE.Scene {
         camera.rotateZ(Math.PI);
     }
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({
+        powerPreference: "high-performance",
+        alpha: false,
+    });
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFShadowMap
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -42,22 +47,22 @@ export function worldSetup(withPlane: boolean): THREE.Scene {
         scene.add(plane)
     }
 
-    const ambient = new THREE.AmbientLight(0xffffff, 1);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambient);
 
     lightGroup = new THREE.Object3D();
 
     light1 = new THREE.DirectionalLight(0xffffff, 2);
     light1.position.set(20, 30, 10);
-    light1.lookAt(0,0,0);
+    light1.lookAt(0, 0, 0);
     light1.castShadow = true;
     light1.shadow.mapSize.width = 1024
     light1.shadow.mapSize.height = 1024
     light1.shadow.camera.near = 0.1
     light1.shadow.camera.far = 1000
     light1.shadow
-    
-    const d = 30;
+
+    const d = 50;
     light1.shadow.camera.left = - d;
     light1.shadow.camera.right = d;
     light1.shadow.camera.top = d;
@@ -66,15 +71,13 @@ export function worldSetup(withPlane: boolean): THREE.Scene {
     lightGroup.add(light1.target);
     lightGroup.add(light1);
 
-    // light2 = new THREE.DirectionalLight(0xffffff, 1);
-    // light2.position.set(-20, 50, 20);
-    // lightGroup.add(light2);
-
     scene.add(lightGroup);
-    // const helper = new THREE.CameraHelper( light1.shadow.camera );
-    // scene.add( helper );
 
     return scene;
+}
+
+export function disableShadows(): void {
+    light1.castShadow = false;
 }
 
 export function renderScene(): void {
@@ -83,12 +86,15 @@ export function renderScene(): void {
     }
 }
 
-export function lookAt(x: number, y: number, z: number): void {
+export function lookAt(target: THREE.Object3D): void {
+    const direction = target.getWorldDirection(new THREE.Vector3());
+    const above = (distance / 3) + 1;
+
     if (planView) {
-        camera.position.set(x, 200, z);
+        camera.position.set(target.position.x, 200, target.position.y);
     } else {
-        camera.position.set(x, y + distance / 2, z - distance);
-        lightGroup.position.set(x, y, z);
+        camera.position.set(target.position.x - (direction.x * distance), target.position.y + above, target.position.z - (direction.z * distance));
+        lightGroup.position.copy(target.position);
     }
-    camera.lookAt(x, y, z);  
+    camera.lookAt(target.position.x, target.position.y + above, target.position.z);
 }
