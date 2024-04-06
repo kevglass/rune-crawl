@@ -71,6 +71,7 @@ export function recolor(model: THREE.Object3D, name: string, col: string): void 
     model.traverse(child => {
         if (child instanceof THREE.Mesh) {
             if (child.material.name === name) {
+                child.material = child.material.clone();
                 child.material.color = new THREE.Color(col);
             }
         }
@@ -150,6 +151,15 @@ export function getAnimations(modelRef: ModelRef): string[] {
     }
 
     return modelRef.model.animations.map(anim => anim.name);
+}
+
+export function getCurrentAnimation(model: THREE.Object3D): string {
+    const anim: AnimSettings = anims[model.id];
+    if (!anim) {
+        return "";
+    }
+
+    return anim.name;
 }
 
 export function animateModel(model: THREE.Object3D<THREE.Object3DEventMap>, name: string, once = false, onDone: (() => void) | undefined = undefined): void {

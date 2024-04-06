@@ -1,84 +1,73 @@
 import type { PlayerId, RuneClient } from "rune-games-sdk/multiplayer"
+import { Town, generateTown } from "./town";
 
-export type Cells = (PlayerId | null)[]
+export const TOWN_SIZE = 22;
+export const COLS = ["#44aa80", "#aa4480", "#4480aa"];
+
+export interface Actor {
+  id: PlayerId;
+  color: string;
+  x: number;
+  y: number;
+  r: number;
+}
+
 export interface GameState {
-  cells: Cells
-  winCombo: number[] | null
-  lastMovePlayerId: PlayerId | null
-  playerIds: PlayerId[]
-  freeCells?: boolean
+  seed: number;
+  actors: Actor[];
 }
 
 type GameActions = {
-  claimCell: (cellIndex: number) => void
+  update: (params: {x: number, y: number, r: number}) => void
 }
 
 declare global {
   const Rune: RuneClient<GameState, GameActions>
 }
 
-function findWinningCombo(cells: Cells) {
-  return (
-    [
-      [0, 1, 2],
-      [3, 4, 5],
-      [6, 7, 8],
-      [0, 3, 6],
-      [1, 4, 7],
-      [2, 5, 8],
-      [0, 4, 8],
-      [2, 4, 6],
-    ].find((combo) =>
-      combo.every((i) => cells[i] && cells[i] === cells[combo[0]])
-    ) || null
-  )
+const town: Town = {
+  seed: 0,
+  map: [],
+  items: [],
+  size: 0,
+  collisionGridSize: 0,
+  collision: []
 }
 
 Rune.initLogic({
   minPlayers: 2,
   maxPlayers: 2,
   setup: (allPlayerIds) => {
-    return {
-      cells: new Array(9).fill(null),
-      winCombo: null,
-      lastMovePlayerId: null,
-      playerIds: allPlayerIds,
+    const state: GameState = {
+      actors: [],
+      seed: 548 //Math.floor(Math.random() * 10000)
     }
+
+    console.log("World Seed: " + state.seed);
+
+    generateTown(state.seed, TOWN_SIZE, town);
+    for (const playerId of allPlayerIds) {
+      const actor: Actor = {
+        id: playerId,
+        color: COLS[allPlayerIds.indexOf(playerId) % COLS.length],
+        x: town.size / 2,
+        y: town.size / 2,
+        r: 0
+      }
+      state.actors.push(actor);
+    }
+
+    return state;
   },
   actions: {
-    claimCell: (cellIndex, { game, playerId, allPlayerIds }) => {
-      if (
-        game.cells[cellIndex] !== null ||
-        playerId === game.lastMovePlayerId
-      ) {
-        throw Rune.invalidAction()
+    update: (params, context) => {
+      // do nothing
+      const actor = context.game.actors.find(a => a.id === context.playerId);
+      if (actor) {
+        actor.x = params.x;
+        actor.y = params.y;
+        actor.r = params.r;
       }
-
-      game.cells[cellIndex] = playerId
-      game.lastMovePlayerId = playerId
-      game.winCombo = findWinningCombo(game.cells)
-
-      if (game.winCombo) {
-        const [player1, player2] = allPlayerIds
-
-        Rune.gameOver({
-          players: {
-            [player1]: game.lastMovePlayerId === player1 ? "WON" : "LOST",
-            [player2]: game.lastMovePlayerId === player2 ? "WON" : "LOST",
-          },
-        })
-      }
-
-      game.freeCells = game.cells.findIndex((cell) => cell === null) !== -1
-
-      if (!game.freeCells) {
-        Rune.gameOver({
-          players: {
-            [game.playerIds[0]]: "LOST",
-            [game.playerIds[1]]: "LOST",
-          },
-        })
-      }
-    },
+    }
   },
 })

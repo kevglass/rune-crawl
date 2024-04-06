@@ -1,17 +1,27 @@
 import { disableShadows, lookAt, renderScene, worldSetup } from './renderer';
-import { animateModel, attach, createFromKayAnimations, getAnimations, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
-import { Object3D, Object3DEventMap, Vector3 } from 'three';
+import { animateModel, attach, createFromKayAnimations, getAnimations, getCurrentAnimation, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
+import { Object3D, Object3DEventMap, Scene, Vector3 } from 'three';
 import nipplejs, { JoystickManager } from 'nipplejs';
 import { loadAllTownModels } from './townModels';
-import { generateTown, getTownCollisionAt } from './town';
+import { Town, generateTown, getTownCollisionAt } from './town';
 import { renderSize } from './contants';
 import { renderTown } from './renderTown';
+import { Actor, TOWN_SIZE } from './logic';
 
 const prototype = loadModel("prototype.glb", true, false);
 const survivor = loadModel("character_survivor.gltf", true, true);
 const shotgun = loadModel("shotgun.gltf.glb", true, false);
 
 let playerModel: Object3D<Object3DEventMap>;
+
+const town: Town = {
+  seed: 0,
+  map: [],
+  items: [],
+  size: 0,
+  collisionGridSize: 0,
+  collision: []
+}
 
 const controls = {
   x: 0,
@@ -39,6 +49,10 @@ const fpsInterval = 1000 / 30;
 let lastFrame = 0;
 const movePerFrame = 0.5;
 const turnPerFrame = 0.1
+let actorModels: Record<string, Object3D> = {};
+let scene!: Scene;
+let lastUpdateToServer = 0;
+let localAng = 0;
 
 window.addEventListener("keydown", (event) => {
   keys[event.key] = true;
@@ -47,8 +61,8 @@ window.addEventListener("keyup", (event) => {
   keys[event.key] = false;
 });
 
-const town = generateTown(100);
 let over = 0;
+const UP = new Vector3(0,1,0);
 
 loadAllTownModels();
 
@@ -58,29 +72,72 @@ onAllLoaded(() => {
     shotgun.model.scene.translateX(-0.4);
     shotgun.model.scene.translateY(0.2);
   }
-  const scene = worldSetup(false);
+  scene = worldSetup(false);
 
-  // playerModel = createAnimated(scene, prototype, duck, "character_duck");
-  // playerModel = applyTexture(instanceModel(scene, monster), textureB);
-  playerModel = createFromKayAnimations(scene, prototype, survivor, "character_survivor");
-  recolor(playerModel, "BlueDarker", "#44aa80");
-  
-  scene.add(playerModel);
-  attach(playerModel, shotgun, "handSlotRight")
-  animateModel(playerModel, "Idle");
+  Rune.initClient({
+    onChange: (update) => {
+      // do nothing
+      if (update.game.seed !== town.seed) {
+        generateTown(update.game.seed, TOWN_SIZE, town);
+        actorModels = {};
+      }
+
+      for (const actor of update.game.actors) {
+        let model = actorModels[actor.id];
+        if (!model) {
+          model = actorModels[actor.id] = createActorModel(actor);
+          if (actor.id === update.yourPlayerId) {
+            playerModel = model;
+            lookAt(model);
+          }
+        }
+        if (actor.id !== update.yourPlayerId) {
+          model.position.x = actor.x * renderSize;
+          model.position.z = actor.y * renderSize;
+          model.setRotationFromAxisAngle(UP, actor.r);
+
+          const height = getTownCollisionAt(town, model.position.x, model.position.z);
+          if (height < 0.15 && height > 0) {
+            model.position.y = height * renderSize / 2;
+          }
+        }
+      }
+    }
+  });
+});
+
+function maybeSendUpdate(): void {
+  if (Date.now() - lastUpdateToServer > 200) {
+    lastUpdateToServer = Date.now();
+    Rune.actions.update({ x: playerModel.position.x / renderSize, y: playerModel.position.z / renderSize, r: localAng })
+  }
+}
+
+function createActorModel(actor: Actor): Object3D {
+  const model = createFromKayAnimations(scene, prototype, survivor, "character_survivor");
+  recolor(model, "BlueDarker", actor.color);
+
+  scene.add(model);
+  attach(model, shotgun, "handSlotRight")
+  animateModel(model, "Idle");
 
   renderTown(scene, town);
 
-  playerModel.position.x = (town.size / 2 * renderSize);
-  playerModel.position.z = town.size / 2 * renderSize - (renderSize / 2);
-  playerModel.position.y = 0.5;
-  lookAt(playerModel);
-});
+  model.position.x = actor.x * renderSize;
+  model.position.z = actor.y * renderSize;
+  model.position.y = 0.5;
+  const height = getTownCollisionAt(town, model.position.x, model.position.z);
+  if (height < 0.15 && height > 0) {
+    model.position.y = height * renderSize / 2;
+  }
+
+  return model;
+}
 
 function moveForwards(amount: number) {
   const direction = playerModel.getWorldDirection(new Vector3());
   let bestHeight = 0;
-  for (let i=-0.25;i<0.25;i+=0.125) {
+  for (let i = -0.25; i < 0.25; i += 0.125) {
     const xp = playerModel.position.x + (direction.x * amount * 2) + (direction.z * i);
     const yp = playerModel.position.z + (direction.z * amount * 2) + (direction.x * i);
     const heightAt = getTownCollisionAt(town, xp, yp);
@@ -93,7 +150,7 @@ function moveForwards(amount: number) {
 
   playerModel.translateZ(amount);
   if (bestHeight !== 0) {
-    playerModel.position.y = (bestHeight*renderSize/2);
+    playerModel.position.y = (bestHeight * renderSize / 2);
   }
 }
 
@@ -113,7 +170,7 @@ function animate() {
         disableShadows();
       }
     }
-    
+
     if (playerModel) {
       let change = false;
 
@@ -127,15 +184,18 @@ function animate() {
       }
       if (keys["ArrowLeft"] || keys["a"]) {
         playerModel.rotateY(turnPerFrame);
+        localAng += turnPerFrame;
         change = true;
       }
       if (keys["ArrowRight"] || keys["d"]) {
         playerModel.rotateY(-turnPerFrame);
+        localAng += -turnPerFrame;
         change = true;
       }
 
       if (Math.abs(controls.x) > 0.4) {
         playerModel.rotateY(-controls.x * turnPerFrame);
+        localAng += -controls.x * turnPerFrame;
         change = true;
       }
       if (Math.abs(controls.y) > 0.1) {
@@ -149,8 +209,12 @@ function animate() {
       if (change) {
         lookAt(playerModel);
         animateModel(playerModel, "Run");
+        maybeSendUpdate();
       } else {
-        animateModel(playerModel, "Idle");
+        if (getCurrentAnimation(playerModel) !== "Idle") {
+          animateModel(playerModel, "Idle");
+          maybeSendUpdate();
+        }
       }
     }
     updateAnimations(elapsed / 1000)
@@ -161,9 +225,3 @@ function animate() {
   requestAnimationFrame(animate);
 }
 animate();
-
-Rune.initClient({
-  onChange: () => {
-    // do nothing
-  }
-});

@@ -7,6 +7,7 @@ export interface CellHeight {
 }
 
 export interface Town {
+    seed: number;
     map: Segment[];
     items: Item[];
     size: number;
@@ -292,15 +293,14 @@ export function getTownCollisionAt(town: Town, x: number, y: number): number {
     return collisionInfo?.max ?? 0;
 }
 
-export function generateTown(seed: number, size = 22): Town {
+export function generateTown(seed: number, size: number, town: Town): void {
     const random = seededRandom(seed);
-    const town: Town = {
-        map: [],
-        size,
-        items: [],
-        collisionGridSize: 22 * collisionCellsPerTownCell,
-        collision: []
-    };
+    town.seed = seed;
+    town.map = [];
+    town.size = size;
+    town.items = [];
+    town.collisionGridSize = size * collisionCellSize;
+    town.collision = [];
 
     let trafficHubCount = Math.floor(town.size / 4);
     const trafficHubs: Point[] = [];
@@ -425,5 +425,4 @@ export function generateTown(seed: number, size = 22): Town {
             }
         }
     }
-    return town;
 }

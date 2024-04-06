@@ -7,7 +7,7 @@ let light1: THREE.DirectionalLight;
 let light2: THREE.DirectionalLight;
 let lightGroup: THREE.Object3D;
 
-const planView = true;
+const planView = false;
 const distance = 5;
 export function worldSetup(withPlane: boolean): THREE.Scene {
     scene = new THREE.Scene();
