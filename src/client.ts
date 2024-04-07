@@ -129,9 +129,12 @@ onAllLoaded(() => {
         }
       }
 
-      let info = "";
-      info += JSON.stringify({ x: update.game.actors[0].x, y: update.game.actors[0].y, r: update.game.actors[0].r });
-      document.getElementById("info")!.innerHTML = info;
+      const infoDiv = document.getElementById("info");
+      if (infoDiv) {
+        let info = "";
+        info += JSON.stringify({ x: update.game.actors[0].x, y: update.game.actors[0].y, r: update.game.actors[0].r });
+        infoDiv.innerHTML = info;
+      }
     }
   });
 });
