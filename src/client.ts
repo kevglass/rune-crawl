@@ -1,12 +1,12 @@
 import { disableShadows, lookAt, renderScene, worldSetup } from './renderer';
-import { animateModel, attach, createFromKayAnimations, getAnimations, getCurrentAnimation, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
+import { animateModel, attach, createFromKayAnimations, getAnimations, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
 import { Object3D, Object3DEventMap, Scene, Vector3 } from 'three';
 import nipplejs, { JoystickManager } from 'nipplejs';
 import { loadAllTownModels } from './townModels';
-import { Town, generateTown, getTownCollisionAt } from './town';
+import { getTownCollisionAt } from './town';
 import { renderSize } from './contants';
 import { renderTown } from './renderTown';
-import { Actor, TOWN_SIZE } from './logic';
+import { Actor, ControlState, towns } from './logic';
 
 const prototype = loadModel("prototype.glb", true, false);
 const survivor = loadModel("character_survivor.gltf", true, true);
@@ -14,16 +14,12 @@ const shotgun = loadModel("shotgun.gltf.glb", true, false);
 
 let playerModel: Object3D<Object3DEventMap>;
 
-const town: Town = {
-  seed: 0,
-  map: [],
-  items: [],
-  size: 0,
-  collisionGridSize: 0,
-  collision: []
+const lastSentControls: ControlState = {
+  x: 0,
+  y: 0
 }
 
-const controls = {
+const controls: ControlState = {
   x: 0,
   y: 0
 };
@@ -44,25 +40,45 @@ joystick.on("end", () => {
   controls.y = 0;
 });
 
-const keys: Record<string, boolean> = {};
 const fpsInterval = 1000 / 30;
 let lastFrame = 0;
-const movePerFrame = 0.5;
-const turnPerFrame = 0.1
 let actorModels: Record<string, Object3D> = {};
+
 let scene!: Scene;
 let lastUpdateToServer = 0;
-let localAng = 0;
+let townIndex = -1;
 
-window.addEventListener("keydown", (event) => {
-  keys[event.key] = true;
+window.addEventListener("keydown", ({ key }) => {
+  if (key === "ArrowUp" || key === "w") {
+    controls.y = -1;
+  }
+  if (key === "ArrowDown" || key === "s") {
+    controls.y = 1;
+  }
+  if (key === "ArrowLeft" || key === "a") {
+    controls.x = -1;
+  }
+  if (key === "ArrowRight" || key === "d") {
+    controls.x = 1;
+  }
 });
-window.addEventListener("keyup", (event) => {
-  keys[event.key] = false;
+window.addEventListener("keyup", ({ key }) => {
+  if (key === "ArrowUp" || key === "w") {
+    controls.y = 0;
+  }
+  if (key === "ArrowDown" || key === "s") {
+    controls.y = 0;
+  }
+  if (key === "ArrowLeft" || key === "a") {
+    controls.x = 0;
+  }
+  if (key === "ArrowRight" || key === "d") {
+    controls.x = 0;
+  }
 });
 
 let over = 0;
-const UP = new Vector3(0,1,0);
+const UP = new Vector3(0, 1, 0);
 
 loadAllTownModels();
 
@@ -77,13 +93,14 @@ onAllLoaded(() => {
   Rune.initClient({
     onChange: (update) => {
       // do nothing
-      if (update.game.seed !== town.seed) {
-        generateTown(update.game.seed, TOWN_SIZE, town);
+      if (update.game.townIndex !== townIndex) {
+        townIndex = update.game.townIndex;
         actorModels = {};
       }
 
       for (const actor of update.game.actors) {
         let model = actorModels[actor.id];
+
         if (!model) {
           model = actorModels[actor.id] = createActorModel(actor);
           if (actor.id === update.yourPlayerId) {
@@ -91,25 +108,42 @@ onAllLoaded(() => {
             lookAt(model);
           }
         }
-        if (actor.id !== update.yourPlayerId) {
-          model.position.x = actor.x * renderSize;
-          model.position.z = actor.y * renderSize;
-          model.setRotationFromAxisAngle(UP, actor.r);
 
-          const height = getTownCollisionAt(town, model.position.x, model.position.z);
-          if (height < 0.15 && height > 0) {
-            model.position.y = height * renderSize / 2;
+        model.position.x = actor.x * renderSize;
+        model.position.z = actor.y * renderSize;
+        model.setRotationFromAxisAngle(UP, actor.r);
+
+        const height = getTownCollisionAt(towns[townIndex], actor.x, actor.y);
+        if (height < 0.15 && height > 0) {
+          model.position.y = height * renderSize / 2;
+        }
+
+        if (actor.controls.x || actor.controls.y) {
+          if (actor.controls.y > 0) {
+            animateModel(model, "Walk");
+          } else {
+            animateModel(model, "Run");
           }
+        } else {
+          animateModel(model, "Idle");
         }
       }
+
+      let info = "";
+      info += JSON.stringify({ x: update.game.actors[0].x, y: update.game.actors[0].y, r: update.game.actors[0].r });
+      document.getElementById("info")!.innerHTML = info;
     }
   });
 });
 
 function maybeSendUpdate(): void {
-  if (Date.now() - lastUpdateToServer > 200) {
-    lastUpdateToServer = Date.now();
-    Rune.actions.update({ x: playerModel.position.x / renderSize, y: playerModel.position.z / renderSize, r: localAng })
+  if (lastSentControls.x !== controls.x || lastSentControls.y !== controls.y) {
+    if (Date.now() - lastUpdateToServer > 200) {
+      lastUpdateToServer = Date.now();
+      Rune.actions.update({ x: controls.x, y: controls.y })
+      lastSentControls.x = controls.x;
+      lastSentControls.y = controls.y;
+    }
   }
 }
 
@@ -121,41 +155,17 @@ function createActorModel(actor: Actor): Object3D {
   attach(model, shotgun, "handSlotRight")
   animateModel(model, "Idle");
 
-  renderTown(scene, town);
+  renderTown(scene, towns[townIndex]);
 
   model.position.x = actor.x * renderSize;
   model.position.z = actor.y * renderSize;
   model.position.y = 0.5;
-  const height = getTownCollisionAt(town, model.position.x, model.position.z);
+  const height = getTownCollisionAt(towns[townIndex], model.position.x, model.position.z);
   if (height < 0.15 && height > 0) {
     model.position.y = height * renderSize / 2;
   }
 
   return model;
-}
-
-function moveForwards(amount: number) {
-  const direction = playerModel.getWorldDirection(new Vector3());
-  let bestHeight = 0;
-  for (let i = -0.25; i < 0.25; i += 0.125) {
-    const xp = playerModel.position.x + (direction.x * amount * 2) + (direction.z * i);
-    const yp = playerModel.position.z + (direction.z * amount * 2) + (direction.x * i);
-    const heightAt = getTownCollisionAt(town, xp, yp);
-    if (heightAt > 0.15) {
-      return;
-    }
-
-    bestHeight = Math.max(bestHeight, heightAt);
-  }
-
-  playerModel.translateZ(amount);
-  if (bestHeight !== 0) {
-    playerModel.position.y = (bestHeight * renderSize / 2);
-  }
-}
-
-function moveBackwards(amount: number) {
-  moveForwards(-amount / 2);
 }
 
 function animate() {
@@ -172,50 +182,8 @@ function animate() {
     }
 
     if (playerModel) {
-      let change = false;
-
-      if (keys["ArrowUp"] || keys["w"]) {
-        moveForwards(movePerFrame);
-        change = true;
-      }
-      if (keys["ArrowDown"] || keys["s"]) {
-        moveBackwards(movePerFrame);
-        change = true;
-      }
-      if (keys["ArrowLeft"] || keys["a"]) {
-        playerModel.rotateY(turnPerFrame);
-        localAng += turnPerFrame;
-        change = true;
-      }
-      if (keys["ArrowRight"] || keys["d"]) {
-        playerModel.rotateY(-turnPerFrame);
-        localAng += -turnPerFrame;
-        change = true;
-      }
-
-      if (Math.abs(controls.x) > 0.4) {
-        playerModel.rotateY(-controls.x * turnPerFrame);
-        localAng += -controls.x * turnPerFrame;
-        change = true;
-      }
-      if (Math.abs(controls.y) > 0.1) {
-        if (controls.y < 0) {
-          moveBackwards(-controls.y * movePerFrame);
-        } else {
-          moveForwards(controls.y * movePerFrame);
-        }
-        change = true;
-      }
-      if (change) {
-        lookAt(playerModel);
-        animateModel(playerModel, "Run");
-        maybeSendUpdate();
-      } else {
-        if (getCurrentAnimation(playerModel) !== "Idle") {
-          animateModel(playerModel, "Idle");
-          maybeSendUpdate();
-        }
-      }
+      maybeSendUpdate();
+      lookAt(playerModel);
     }
     updateAnimations(elapsed / 1000)
     lastFrame = now;

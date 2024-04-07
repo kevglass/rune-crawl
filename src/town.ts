@@ -1,18 +1,13 @@
 import { collisionCellsPerTownCell, collisionCellSize } from "./contants";
 import { ASSETS } from "./lib/rawassets";
 
-export interface CellHeight {
-    min: number;
-    max: number;
-}
-
 export interface Town {
     seed: number;
     map: Segment[];
     items: Item[];
     size: number;
     collisionGridSize: number;
-    collision: CellHeight[];
+    collision: number[];
 }
 
 export interface Segment {
@@ -60,24 +55,11 @@ export const townModelMapping: Record<number, string> = {
     202: "world/trafficlight_C.gltf",
 }
 
-export interface CollisionHeight {
-    x: number;
-    y: number;
-    height: {
-        min: number;
-        max: number;
-    }
-}
-
 export interface CollisionInfo {
     name: string;
     size: number;
     resolution: number;
-    heights: CollisionHeight[];
-}
-
-export const townModelCollisions: Record<number, CollisionInfo> = {
-
+    heights: number[];
 }
 
 type RandomFunc = () => number;
@@ -268,19 +250,14 @@ function rationalizeRoad(random: RandomFunc, town: Town, x: number, y: number, r
     }
 }
 
-export function updateCollision(town: Town, xp: number, yp: number, collisionEntry: CollisionHeight) {
-    // it starts too high up to effect anything
-    if (collisionEntry.height.min > 0.5) {
-        return;
-    }
-
+export function updateCollision(town: Town, xp: number, yp: number, collisionEntry: number) {
     const current = town.collision[xp + (yp * town.collisionGridSize)];
     if (current) {
-        if (current.max < collisionEntry.height.max) {
-            town.collision[xp + (yp * town.collisionGridSize)].max = collisionEntry.height.max;
+        if (current < collisionEntry) {
+            town.collision[xp + (yp * town.collisionGridSize)] = collisionEntry;
         }
     } else {
-        town.collision[xp + (yp * town.collisionGridSize)] = collisionEntry.height;
+        town.collision[xp + (yp * town.collisionGridSize)] = collisionEntry;
     }
 }
 
@@ -288,19 +265,20 @@ export function getTownCollisionAt(town: Town, x: number, y: number): number {
     x = Math.floor(x / collisionCellSize);
     y = Math.floor(y / collisionCellSize);
 
-    const collisionInfo = town.collision[x + (y * town.collisionGridSize)]
-
-    return collisionInfo?.max ?? 0;
+    return town.collision[x + (y * town.collisionGridSize)]
 }
 
-export function generateTown(seed: number, size: number, town: Town): void {
+export function generateTown(seed: number, size: number): Town {
+    const town: Town = {
+        seed: seed,
+        map: [],
+        items: [],
+        size: size,
+        collisionGridSize: 0,
+        collision: []
+    };
+
     const random = seededRandom(seed);
-    town.seed = seed;
-    town.map = [];
-    town.size = size;
-    town.items = [];
-    town.collisionGridSize = size * collisionCellSize;
-    town.collision = [];
 
     let trafficHubCount = Math.floor(town.size / 4);
     const trafficHubs: Point[] = [];
@@ -389,10 +367,13 @@ export function generateTown(seed: number, size: number, town: Town): void {
     // generate collision from data files
     town.collisionGridSize = town.size * collisionCellsPerTownCell;
 
+    const townModelCollisions: Record<number, CollisionInfo> = {
+
+    }
     for (const key in townModelMapping) {
         const model = townModelMapping[key];
-        townModelCollisions[key] = JSON.parse(ASSETS[model + ".json"]);
-
+        const filename = model.replace("world", "collision") + ".json";
+        townModelCollisions[key] = JSON.parse(ASSETS[filename]);
     }
     for (let x = 0; x < town.size; x++) {
         for (let y = 0; y < town.size; y++) {
@@ -400,29 +381,33 @@ export function generateTown(seed: number, size: number, town: Town): void {
             if (segment) {
                 // look up the collision data for the segment
                 const collisionModel = townModelCollisions[segment.model];
-                for (const collisionEntry of collisionModel.heights) {
-                    if (segment.rotation === 0) {
-                        const xp = collisionEntry.x + (x * collisionCellsPerTownCell);
-                        const yp = collisionEntry.y + (y * collisionCellsPerTownCell) + 1;
-                        updateCollision(town, xp, yp, collisionEntry);
-                    }
-                    if (segment.rotation === Math.PI) {
-                        const xp = (collisionCellsPerTownCell - 1 - collisionEntry.x) + (x * collisionCellsPerTownCell);
-                        const yp = (collisionCellsPerTownCell - 1 - collisionEntry.y) + (y * collisionCellsPerTownCell);
-                        updateCollision(town, xp, yp, collisionEntry);
-                    }
-                    if (segment.rotation === Math.PI / 2) {
-                        const xp = collisionEntry.y + (x * collisionCellsPerTownCell);
-                        const yp = (collisionCellsPerTownCell - 1 - collisionEntry.x) + (y * collisionCellsPerTownCell);
-                        updateCollision(town, xp, yp, collisionEntry);
-                    }
-                    if (segment.rotation === -Math.PI / 2 || segment.rotation === Math.PI * 0.75) {
-                        const xp = (collisionCellsPerTownCell - 1 - collisionEntry.y) + (x * collisionCellsPerTownCell);
-                        const yp = collisionEntry.x + (y * collisionCellsPerTownCell);
-                        updateCollision(town, xp, yp, collisionEntry);
+                for (let cx = 0; cx < collisionModel.size; cx++) {
+                    for (let cy = 0; cy < collisionModel.size; cy++) {
+                        if (segment.rotation === 0) {
+                            const xp = cx + (x * collisionCellsPerTownCell);
+                            const yp = cy + (y * collisionCellsPerTownCell) + 1;
+                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                        }
+                        if (segment.rotation === Math.PI) {
+                            const xp = (collisionCellsPerTownCell - 1 - cx) + (x * collisionCellsPerTownCell);
+                            const yp = (collisionCellsPerTownCell - 1 - cy) + (y * collisionCellsPerTownCell);
+                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                        }
+                        if (segment.rotation === Math.PI / 2) {
+                            const xp = cy + (x * collisionCellsPerTownCell);
+                            const yp = (collisionCellsPerTownCell - 1 - cx) + (y * collisionCellsPerTownCell);
+                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                        }
+                        if (segment.rotation === -Math.PI / 2 || segment.rotation === Math.PI * 0.75) {
+                            const xp = (collisionCellsPerTownCell - 1 - cy) + (x * collisionCellsPerTownCell);
+                            const yp = cx + (y * collisionCellsPerTownCell);
+                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                        }
                     }
                 }
             }
         }
     }
+
+    return town;
 }

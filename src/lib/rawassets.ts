@@ -1,4 +1,4 @@
-const JSON = import.meta.glob("../assets/**/*.json", {
+const JSON = import.meta.glob("../assets/collision/*.json", {
     query: '?raw',
     import: 'default',
     eager: true,

@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1"
-    />
-    <title></title>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+  <title></title>
   <style>
     body {
       padding: 0;
@@ -20,11 +18,25 @@
       width: 150px;
       height: 150px;
     }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      z-index: 100;
+      display: block;
+      color: white;
+      overflow: hidden;
+    }
   </style>
-  </head>
-  <body>
-    <div id="joystick"></div>
-    <script type="module" src="/src/logic.ts"></script>
-    <script type="module" src="/src/client.ts"></script>
-  </body>
+</head>
+
+<body>
+  <div id="info"></div>
+  <div id="joystick"></div>
+  <script type="module" src="/src/logic.ts"></script>
+  <script type="module" src="/src/client.ts"></script>
+</body>
+
 </html>

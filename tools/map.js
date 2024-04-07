@@ -67,9 +67,6 @@ for (const modelSrc of models) {
     if (!modelSrc.endsWith(".glb") && !modelSrc.endsWith(".gltf")) {
         continue;
     }
-    if (!modelSrc.endsWith("building_D.gltf")) {
-        continue;
-    }
     loader.load("../src/assets/world/" + modelSrc, (model) => {
         const heights = [];
 
@@ -97,13 +94,13 @@ for (const modelSrc of models) {
 
         const result = [];
 
-        for (let x=0;x<size;x++) {
-            for (let y=0;y<size;y++) {
+        for (let y=0;y<size;y++) {
+            for (let x=0;x<size;x++) {
                 const height = heights[x + (y * size)];
-                if (height.min <= height.max) {
-                    result.push({
-                        x, y, height
-                    })
+                if (height.min <= height.max && height.min < 0.5) {
+                    result.push(Math.floor(height.max * 100) / 100);
+                } else {
+                    result.push(0);
                 }
             }
         }
@@ -115,8 +112,6 @@ for (const modelSrc of models) {
             heights: result
         };
 
-        fs.writeFileSync("../src/assets/world/"+modelSrc+".json", JSON.stringify(data, null, 2));
-        const caster = new THREE.Raycaster();
-        caster.set(new THREE.Vector3(0.5,100,0.5), new THREE.Vector3(0,-1,0));
+        fs.writeFileSync("../src/assets/collision/"+modelSrc+".json", JSON.stringify(data));
     })
 }
