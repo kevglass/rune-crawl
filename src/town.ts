@@ -408,6 +408,35 @@ export function generateTown(seed: number, size: number): Town {
             }
         }
     }
+    for (const item of town.items) {
+        const x = item.x;
+        const y = item.y;
+        const collisionModel = townModelCollisions[item.model];
+        for (let cx = 0; cx < collisionModel.size; cx++) {
+            for (let cy = 0; cy < collisionModel.size; cy++) {
+                if (item.rotation === 0) {
+                    const xp = cx + (x * collisionCellsPerTownCell);
+                    const yp = cy + (y * collisionCellsPerTownCell) + 1;
+                    updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                }
+                if (item.rotation === Math.PI) {
+                    const xp = (collisionCellsPerTownCell - 1 - cx) + (x * collisionCellsPerTownCell);
+                    const yp = (collisionCellsPerTownCell - 1 - cy) + (y * collisionCellsPerTownCell);
+                    updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                }
+                if (item.rotation === Math.PI / 2) {
+                    const xp = cy + (x * collisionCellsPerTownCell);
+                    const yp = (collisionCellsPerTownCell - 1 - cx) + (y * collisionCellsPerTownCell);
+                    updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                }
+                if (item.rotation === -Math.PI / 2 || item.rotation === Math.PI * 0.75) {
+                    const xp = (collisionCellsPerTownCell - 1 - cy) + (x * collisionCellsPerTownCell);
+                    const yp = cx + (y * collisionCellsPerTownCell);
+                    updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                }
+            }
+        }
+    }
 
     return town;
 }

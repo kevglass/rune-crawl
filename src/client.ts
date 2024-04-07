@@ -50,10 +50,10 @@ let townIndex = -1;
 
 window.addEventListener("keydown", ({ key }) => {
   if (key === "ArrowUp" || key === "w") {
-    controls.y = -1;
+    controls.y = 1;
   }
   if (key === "ArrowDown" || key === "s") {
-    controls.y = 1;
+    controls.y = -1;
   }
   if (key === "ArrowLeft" || key === "a") {
     controls.x = -1;
@@ -92,6 +92,9 @@ onAllLoaded(() => {
 
   Rune.initClient({
     onChange: (update) => {
+      if (update.event?.name !== 'update') {
+        return;
+      }
       // do nothing
       if (update.game.townIndex !== townIndex) {
         townIndex = update.game.townIndex;
