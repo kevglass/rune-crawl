@@ -4,10 +4,10 @@ import { Town, generateTown, getTownCollisionAt } from "./town";
 export const TOWN_SIZE = 22;
 export const COLS = ["#44aa80", "#aa4480", "#4480aa"];
 
-export const movePerFrame = 0.03;
+export const movePerFrame = 0.06;
 export const turnPerFrame = Math.PI / 30;
 
-const moveAccel = 1 / 15;
+const moveAccel = 1 / 60;
 const turnAccel = turnPerFrame;
 
 export type ControlState = {
@@ -134,19 +134,19 @@ function move(town: Town, actor: Actor, delta: number): void {
   const x = Math.sin(actor.r);
   const y = Math.cos(actor.r);
 
-  let bestHeight = 0;
+  // let bestHeight = 0;
   const scanSize = 0.01;
 
-  for (let i = -scanSize; i <= scanSize; i += scanSize / 2) {
-    const xp = actor.x + (x * delta * 2) + (y * i);
-    const yp = actor.y + (y * delta * 2) + (x * i);
-    const heightAt = getTownCollisionAt(town, xp, yp);
-    if (heightAt > 0.15) {
-      return;
-    }
+  // for (let i = -scanSize; i <= scanSize; i += scanSize / 2) {
+  //   const xp = actor.x + (x * delta * 2) + (y * i);
+  //   const yp = actor.y + (y * delta * 2) + (x * i);
+  //   const heightAt = getTownCollisionAt(town, xp, yp);
+  //   if (heightAt > 0.15) {
+  //     return;
+  //   }
 
-    bestHeight = Math.max(bestHeight, heightAt);
-  }
+  //   bestHeight = Math.max(bestHeight, heightAt);
+  // }
 
   actor.x += delta * x;
   actor.y += delta * y;

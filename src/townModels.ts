@@ -5,7 +5,7 @@ const townModels: Record<string, ModelRef> = {};
 
 export function loadAllTownModels(): void {
     for (const ref of Object.values(townModelMapping)) {
-        townModels[ref] = loadModel(ref, true, true);
+        townModels[ref] = loadModel(ref);
     }
 }
 

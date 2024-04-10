@@ -36,23 +36,17 @@ interface Rect {
 }
 
 export const townModelMapping: Record<number, string> = {
-    1: "world/road_straight.gltf",
-    5: "world/road_straight_crossing.gltf",
-    2: "world/road_junction.gltf",
-    3: "world/road_tsplit.gltf",
-    4: "world/road_corner_curved.gltf",
-    10: "world/building_A.gltf",
-    11: "world/building_B.gltf",
-    12: "world/building_C.gltf",
-    13: "world/building_D.gltf",
-    14: "world/building_E.gltf",
-    15: "world/building_F.gltf",
-    16: "world/building_G.gltf",
-    17: "world/building_H.gltf",
-    100: "world/base.gltf",
-    200: "world/trafficlight_A.gltf",
-    201: "world/trafficlight_B.gltf",
-    202: "world/trafficlight_C.gltf",
+    1: "world/road-straight.glb",
+    5: "world/road-straight-lightposts.glb",
+    2: "world/road-intersection.glb",
+    3: "world/road-split.glb",
+    4: "world/road-corner.glb",
+    10: "world/building-small-a.glb",
+    11: "world/building-small-b.glb",
+    12: "world/building-small-c.glb",
+    13: "world/building-small-d.glb",
+    14: "world/building-garage.glb",
+    100: "world/pavement.glb",
 }
 
 export interface CollisionInfo {
@@ -205,46 +199,32 @@ function rationalizeRoad(random: RandomFunc, town: Town, x: number, y: number, r
     if (north && south && east && west) {
         road.model = 2;
         road.rotation = random() > 0.5 ? 0 : Math.PI / 2;
-
-        town.items.push({ model: 202, rotation: -Math.PI / 2, x: x - 0.5, y: y + 0.5 })
-        town.items.push({ model: 202, rotation: Math.PI / 2, x: x + 0.5, y: y - 0.5 })
-        town.items.push({ model: 202, rotation: 0, x: x + 0.5, y: y + 0.5 })
-        town.items.push({ model: 202, rotation: Math.PI, x: x - 0.5, y: y - 0.5 })
     } else if (north && west && east) {
         road.model = 3;
-        road.rotation = Math.PI / 2;
+        road.rotation = Math.PI
     } else if (south && west && east) {
         road.model = 3;
-        road.rotation = Math.PI * 1.5;
     } else if (south && north && west) {
         road.model = 3;
-        road.rotation = Math.PI;
+        road.rotation = Math.PI * 1.5
     } else if (south && north && east) {
         road.model = 3;
+        road.rotation = Math.PI / 2
     } else if (south && east) {
         road.model = 4;
+        road.rotation = Math.PI / 2
     } else if (south && west) {
         road.model = 4;
-        road.rotation = Math.PI * 1.5;
     } else if (north && west) {
         road.model = 4;
-        road.rotation = Math.PI
+        road.rotation = Math.PI * 1.5
     } else if (north && east) {
         road.model = 4;
-        road.rotation = Math.PI / 2
+        road.rotation = Math.PI
     } else if ((west || east) && !north && !south) {
         road.rotation = Math.PI / 2;
     }
 
-    const directions = (south ? 1 : 0) + (north ? 1 : 0) + (east ? 1 : 0) + (west ? 1 : 0);
-    if (directions === 3) {
-        if (west) {
-            town.items.push({ model: 202, rotation: -Math.PI / 2, x: x - 0.5, y: y + 0.5 })
-        }
-        if (east) {
-            town.items.push({ model: 202, rotation: Math.PI / 2, x: x + 0.5, y: y - 0.5 })
-        }
-    }
     if (road.model === 1 && random() < 0.05) {
         road.model = 5;
     }
@@ -284,10 +264,10 @@ export function generateTown(seed: number, size: number): Town {
     const trafficHubs: Point[] = [];
 
     for (let i = 0; i < town.size; i++) {
-        setSegment(town, i, 0, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: 0 });
-        setSegment(town, i, town.size - 1, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: Math.PI });
-        setSegment(town, 0, i, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: Math.PI / 2 });
-        setSegment(town, town.size - 1, i, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: -Math.PI / 2 });
+        setSegment(town, i, 0, { model: Math.floor(random() * 5) + 10, type: "SHOP", rotation: 0 });
+        setSegment(town, i, town.size - 1, { model: Math.floor(random() * 5) + 10, type: "SHOP", rotation: Math.PI });
+        setSegment(town, 0, i, { model: Math.floor(random() * 5) + 10, type: "SHOP", rotation: Math.PI / 2 });
+        setSegment(town, town.size - 1, i, { model: Math.floor(random() * 5) + 10, type: "SHOP", rotation: -Math.PI / 2 });
     }
 
     while (trafficHubCount > 0) {
@@ -356,7 +336,7 @@ export function generateTown(seed: number, size: number): Town {
                     } else if (north) {
                         r = Math.PI;
                     }
-                    setSegment(town, xp, yp, { model: Math.floor(random() * 8) + 10, type: "SHOP", rotation: r })
+                    setSegment(town, xp, yp, { model: Math.floor(random() * 5) + 10, type: "SHOP", rotation: r })
                 } else {
                     setSegment(town, xp, yp, { model: 100, type: "SHOP", rotation: 0 })
                 }
@@ -373,7 +353,9 @@ export function generateTown(seed: number, size: number): Town {
     for (const key in townModelMapping) {
         const model = townModelMapping[key];
         const filename = model.replace("world", "collision") + ".json";
-        townModelCollisions[key] = JSON.parse(ASSETS[filename]);
+        if (ASSETS[filename]) {
+            townModelCollisions[key] = JSON.parse(ASSETS[filename]);
+        }
     }
     for (let x = 0; x < town.size; x++) {
         for (let y = 0; y < town.size; y++) {
@@ -381,27 +363,29 @@ export function generateTown(seed: number, size: number): Town {
             if (segment) {
                 // look up the collision data for the segment
                 const collisionModel = townModelCollisions[segment.model];
-                for (let cx = 0; cx < collisionModel.size; cx++) {
-                    for (let cy = 0; cy < collisionModel.size; cy++) {
-                        if (segment.rotation === 0) {
-                            const xp = cx + (x * collisionCellsPerTownCell);
-                            const yp = cy + (y * collisionCellsPerTownCell) + 1;
-                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
-                        }
-                        if (segment.rotation === Math.PI) {
-                            const xp = (collisionCellsPerTownCell - 1 - cx) + (x * collisionCellsPerTownCell);
-                            const yp = (collisionCellsPerTownCell - 1 - cy) + (y * collisionCellsPerTownCell);
-                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
-                        }
-                        if (segment.rotation === Math.PI / 2) {
-                            const xp = cy + (x * collisionCellsPerTownCell);
-                            const yp = (collisionCellsPerTownCell - 1 - cx) + (y * collisionCellsPerTownCell);
-                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
-                        }
-                        if (segment.rotation === -Math.PI / 2 || segment.rotation === Math.PI * 0.75) {
-                            const xp = (collisionCellsPerTownCell - 1 - cy) + (x * collisionCellsPerTownCell);
-                            const yp = cx + (y * collisionCellsPerTownCell);
-                            updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                if (collisionModel) {
+                    for (let cx = 0; cx < collisionModel.size; cx++) {
+                        for (let cy = 0; cy < collisionModel.size; cy++) {
+                            if (segment.rotation === 0) {
+                                const xp = cx + (x * collisionCellsPerTownCell);
+                                const yp = cy + (y * collisionCellsPerTownCell) + 1;
+                                updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                            }
+                            if (segment.rotation === Math.PI) {
+                                const xp = (collisionCellsPerTownCell - 1 - cx) + (x * collisionCellsPerTownCell);
+                                const yp = (collisionCellsPerTownCell - 1 - cy) + (y * collisionCellsPerTownCell);
+                                updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                            }
+                            if (segment.rotation === Math.PI / 2) {
+                                const xp = cy + (x * collisionCellsPerTownCell);
+                                const yp = (collisionCellsPerTownCell - 1 - cx) + (y * collisionCellsPerTownCell);
+                                updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                            }
+                            if (segment.rotation === -Math.PI / 2 || segment.rotation === Math.PI * 0.75) {
+                                const xp = (collisionCellsPerTownCell - 1 - cy) + (x * collisionCellsPerTownCell);
+                                const yp = cx + (y * collisionCellsPerTownCell);
+                                updateCollision(town, xp, yp, collisionModel.heights[cx + (cy * collisionModel.size)]);
+                            }
                         }
                     }
                 }

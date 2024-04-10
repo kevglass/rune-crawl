@@ -1,16 +1,17 @@
-import { disableShadows, lookAt, renderScene, worldSetup } from './renderer';
-import { animateModel, attach, createFromKayAnimations, getAnimations, loadModel, onAllLoaded, recolor, updateAnimations } from './modelLoader';
+import { lookAt, renderScene, worldSetup } from './renderer';
+import { cloneModel, loadModel, onAllLoaded } from './modelLoader';
 import { Object3D, Object3DEventMap, Scene, Vector3 } from 'three';
 import nipplejs, { JoystickManager } from 'nipplejs';
 import { loadAllTownModels } from './townModels';
-import { getTownCollisionAt } from './town';
 import { renderSize } from './contants';
 import { renderTown } from './renderTown';
 import { Actor, ControlState, towns } from './logic';
 
-const prototype = loadModel("prototype.glb", true, false);
-const survivor = loadModel("character_survivor.gltf", true, true);
-const shotgun = loadModel("shotgun.gltf.glb", true, false);
+const player = loadModel("sedan.glb");
+
+let fps = 0;
+let fpsCount = 0;
+let lastFps = 0;
 
 let playerModel: Object3D<Object3DEventMap>;
 
@@ -40,13 +41,13 @@ joystick.on("end", () => {
   controls.y = 0;
 });
 
-const fpsInterval = 1000 / 30;
 let lastFrame = 0;
 let actorModels: Record<string, Object3D> = {};
 
 let scene!: Scene;
 let lastUpdateToServer = 0;
 let townIndex = -1;
+let townModels: Object3D[] = [];
 
 window.addEventListener("keydown", ({ key }) => {
   if (key === "ArrowUp" || key === "w") {
@@ -77,18 +78,12 @@ window.addEventListener("keyup", ({ key }) => {
   }
 });
 
-let over = 0;
 const UP = new Vector3(0, 1, 0);
 
 loadAllTownModels();
 
 onAllLoaded(() => {
-  console.log(getAnimations(prototype));
-  if (shotgun.model) {
-    shotgun.model.scene.translateX(-0.4);
-    shotgun.model.scene.translateY(0.2);
-  }
-  scene = worldSetup(false);
+  scene = worldSetup();
 
   Rune.initClient({
     onChange: (update) => {
@@ -99,6 +94,7 @@ onAllLoaded(() => {
       if (update.game.townIndex !== townIndex) {
         townIndex = update.game.townIndex;
         actorModels = {};
+        townModels = renderTown(scene, towns[townIndex]);
       }
 
       for (const actor of update.game.actors) {
@@ -114,28 +110,17 @@ onAllLoaded(() => {
 
         model.position.x = actor.x * renderSize;
         model.position.z = actor.y * renderSize;
-        model.setRotationFromAxisAngle(UP, actor.r);
+        model.setRotationFromAxisAngle(UP, Math.PI + actor.r);
 
-        const height = getTownCollisionAt(towns[townIndex], actor.x, actor.y);
-        if (height < 0.15 && height > 0) {
-          model.position.y = height * renderSize / 2;
-        }
-
-        if (actor.controls.x || actor.controls.y) {
-          if (actor.controls.y > 0) {
-            animateModel(model, "Walk");
-          } else {
-            animateModel(model, "Run");
-          }
-        } else {
-          animateModel(model, "Idle");
-        }
+        // const height = getTownCollisionAt(towns[townIndex], actor.x, actor.y);
+        // if (height < 0.15 && height > 0) {
+        //   model.position.y = height * renderSize / 2;
+        // }
       }
 
       const infoDiv = document.getElementById("info");
       if (infoDiv) {
-        let info = "";
-        info += JSON.stringify({ x: update.game.actors[0].x, y: update.game.actors[0].y, r: update.game.actors[0].r });
+        const info = "" + fps;
         infoDiv.innerHTML = info;
       }
     }
@@ -152,48 +137,47 @@ function maybeSendUpdate(): void {
     }
   }
 }
-
 function createActorModel(actor: Actor): Object3D {
-  const model = createFromKayAnimations(scene, prototype, survivor, "character_survivor");
-  recolor(model, "BlueDarker", actor.color);
-
+  const model = cloneModel(player);
+  model.scale.set(2, 2, 2);
   scene.add(model);
-  attach(model, shotgun, "handSlotRight")
-  animateModel(model, "Idle");
-
-  renderTown(scene, towns[townIndex]);
-
-  model.position.x = actor.x * renderSize;
-  model.position.z = actor.y * renderSize;
-  model.position.y = 0.5;
-  const height = getTownCollisionAt(towns[townIndex], model.position.x, model.position.z);
-  if (height < 0.15 && height > 0) {
-    model.position.y = height * renderSize / 2;
-  }
 
   return model;
 }
 
 function animate() {
   const now = Date.now();
-  const elapsed = now - lastFrame;
 
-  if (elapsed > fpsInterval) {
-    const o = elapsed - fpsInterval;
-    if (o > 20 && over < 100) {
-      over++;
-      if (over >= 100) {
-        disableShadows();
+  fpsCount++;
+  if (now - lastFps > 1000) {
+    fps = fpsCount;
+    fpsCount = 0;
+    lastFps = now;
+  }
+
+  if (playerModel) {
+    maybeSendUpdate();
+    lookAt(playerModel);
+  }
+  lastFrame = now;
+
+  if (scene && playerModel) {
+    const cx = playerModel.position.x;
+    const cz = playerModel.position.z;
+    for (const obj of townModels) {
+      if (obj.userData.cull) {
+        const shouldBeVisible = (Math.abs(cx - obj.position.x) < renderSize * 2.5) && (Math.abs(cz - obj.position.z) < renderSize * 3.5);
+        if (shouldBeVisible) {
+          if (!obj.parent) {
+            scene.add(obj);
+          }
+        } else {
+          if (obj.parent) {
+            obj.removeFromParent();
+          }
+        }
       }
     }
-
-    if (playerModel) {
-      maybeSendUpdate();
-      lookAt(playerModel);
-    }
-    updateAnimations(elapsed / 1000)
-    lastFrame = now;
-
     renderScene();
   }
   requestAnimationFrame(animate);

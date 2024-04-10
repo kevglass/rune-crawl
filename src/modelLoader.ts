@@ -1,63 +1,20 @@
 import * as THREE from 'three';
-import { GLTF, GLTFLoader } from "three/examples/jsm/Addons.js";
+import { GLTFLoader } from "three/examples/jsm/Addons.js";
 import { ASSETS } from "./lib/assets";
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 export interface ModelRef {
-    model?: GLTF;
+    model?: THREE.Object3D;
     loaded: boolean;
-    castShadow: boolean;
-    receiveShadow: boolean;
 }
 
-interface AnimSettings {
-    name: string;
-    mixer: THREE.AnimationMixer;
-    completeListener: () => void;
-}
+const gltfLoader = new GLTFLoader();
 
-const loader = new GLTFLoader();
 let allLoadedCallback: () => void;
 const models: ModelRef[] = [];
 const textures: THREE.Texture[] = [];
-const anims: Record<number, AnimSettings> = {};
-const originals: Record<number, GLTF> = {};
 
 export type KayBone = "armRight" | "armLeft" | "Head" | "Body" | "handSlotLeft" | "handSlotRight";
-
-export function attach(target: THREE.Object3D<THREE.Object3DEventMap>, attachment: ModelRef, bone: KayBone): THREE.Object3D<THREE.Object3DEventMap> {
-    const boneInstance = target.getObjectByName(bone);
-    if (boneInstance) {
-        const item = instanceModel(attachment);
-        boneInstance.attach(item);
-    }
-
-    return target
-}
-
-export function createFromKayAnimations(scene: THREE.Scene, animations: ModelRef, skin: ModelRef, prefix: string): THREE.Object3D<THREE.Object3DEventMap> {
-    const instance = instanceModel(animations);
-    const skinModel = instanceModel(skin);
-
-    instance.getObjectByName("PrototypePete")?.removeFromParent();
-    const leftArm = skinModel.getObjectByName(prefix + "_armLeft");
-    if (leftArm) {
-        instance.getObjectByName("armLeft")?.attach(leftArm);
-    }
-    const rightArm = skinModel.getObjectByName(prefix + "_armRight");
-    if (rightArm) {
-       instance.getObjectByName("armRight")?.attach(rightArm);
-    }
-    const head = skinModel.getObjectByName(prefix + "_head")
-    if (head) {
-        instance.getObjectByName("Head")?.attach(head);
-    }
-    const body = skinModel.getObjectByName(prefix + "_body");
-    if (body) {
-        instance.getObjectByName("Body")?.attach(body);
-    }
-    return instance;
-}
 
 export function dumpColors(model: THREE.Object3D): void {
     model.traverse(child => {
@@ -88,20 +45,14 @@ export function applyTexture(model: THREE.Object3D<THREE.Object3DEventMap>, text
     return model;
 }
 
-export function instanceModel(modelRef: ModelRef): THREE.Object3D<THREE.Object3DEventMap> {
+export function cloneModel(modelRef: ModelRef): THREE.Object3D<THREE.Object3DEventMap> {
     if (!modelRef.model) {
         throw "Model hasn't loaded yet";
     }
-    const instance = clone(modelRef.model.scene);
 
-    instance.traverse(child => {
-        child.receiveShadow = modelRef.receiveShadow;
-        child.castShadow = modelRef.castShadow;
-    });
+    const cloned = clone(modelRef.model);
 
-    originals[instance.id] = modelRef.model;
-
-    return instance;
+    return cloned;
 }
 
 export function loadTexture(ref: string): THREE.Texture {
@@ -112,26 +63,20 @@ export function loadTexture(ref: string): THREE.Texture {
     return texture;
 }
 
-export function loadModel(ref: string, castShadow: boolean, receiveShadow: boolean, textureOverride?: THREE.Texture): ModelRef {
+export function loadModel(ref: string): ModelRef {
     const modelRef: ModelRef = {
-        loaded: false,
-        castShadow, receiveShadow
+        loaded: false
     };
     models.push(modelRef);
 
-    loader.load(ASSETS[ref], (model) => {
+    gltfLoader.load(ASSETS[ref], (model) => {
         model.scene.traverse(child => {
-            child.receiveShadow = receiveShadow;
-            child.castShadow = castShadow;
-            if (child instanceof THREE.SkinnedMesh && textureOverride) {
-                if (child.material.map) {
-                    child.material.map = textureOverride;
-                }
-            }
+            child.receiveShadow = true;
+            child.castShadow = true;
         });
 
         modelRef.loaded = true;
-        modelRef.model = model;
+        modelRef.model = model.scene;
 
         if (models.every(m => m.loaded)) {
             allLoadedCallback();
@@ -151,59 +96,4 @@ export function getAnimations(modelRef: ModelRef): string[] {
     }
 
     return modelRef.model.animations.map(anim => anim.name);
-}
-
-export function getCurrentAnimation(model: THREE.Object3D): string {
-    const anim: AnimSettings = anims[model.id];
-    if (!anim) {
-        return "";
-    }
-
-    return anim.name;
-}
-
-export function animateModel(model: THREE.Object3D<THREE.Object3DEventMap>, name: string, once = false, onDone: (() => void) | undefined = undefined): void {
-    let anim: AnimSettings = anims[model.id];
-    if (!anim) {
-        anim = anims[model.id] = {
-            name: "",
-            mixer: new THREE.AnimationMixer(model),
-            completeListener: () => { return }
-        }
-
-        anim.mixer.addEventListener("finished", () => {
-            anim.completeListener();
-            anim.completeListener = () => { return }
-        });
-    }
-
-    if (anim.name === name) {
-        return;
-    }
-    anim.name = name;
-
-    anim.mixer.stopAllAction();
-    const animation = originals[model.id].animations.find(anim => anim.name === name);
-    if (!animation) {
-        console.log("Couldn't find animation: " + name);
-        return;
-    }
-
-    const action = anim.mixer.clipAction(animation);
-
-    if (once) {
-        action.setLoop(THREE.LoopOnce, 1);
-        action.clampWhenFinished = true;
-    }
-    action.enabled = true;
-    action.play();
-    if (onDone) {
-        anim.completeListener = onDone;
-    } else {
-        anim.completeListener = () => { return }
-    }
-}
-
-export function updateAnimations(delta: number): void {
-    Object.values(anims).forEach(anim => anim.mixer.update(delta));
 }
